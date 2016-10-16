@@ -1,25 +1,70 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "PA1_template.Rmd"
+author: "Darren McNally"
+output: html_document
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 
-## Loading and preprocessing the data
+**Loading and preprocessing the data**
+```{r message=FALSE}
+unzip('activity.zip')
+x <- read.csv('activity.csv')
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+```
 
+**What is mean total number of steps taken per day?**
+```{r, message=FALSE, warning=FALSE}
+by.day <- group_by(x, date)
+ggplot(summarize(by.day, sum.steps = sum(steps)), aes(sum.steps)) + geom_histogram()
+totals <- summarize(by.day, total.steps = sum(steps))
+tot.mean <- mean(totals$total.steps, na.rm = T)
+tot.median <- median(totals$total.steps, na.rm = T)
+```
+The mean for all of the days is `r tot.mean` steps, and the median for all of the days is `r tot.median` steps.
 
+**What is the average daily activity pattern?**
+```{r}
+by.interval <- summarize(group_by(x,interval), steps=mean(steps, na.rm = T))
+ggplot(by.interval, aes(interval, steps)) + geom_line()
+max <- by.interval$interval[which.max(by.interval$steps)]
+```
+The `r max` time interval contains the largest number of steps, on average.
 
-## What is mean total number of steps taken per day?
+**Inputing missing values**
+```{r}
+y <- x
+missing <- is.na(y$steps)
+tot.missing <- sum(missing)
+```
+The data set is missing `r tot.missing` values.
 
+The empty values will be filled with the average for the interval.
+```{r message=FALSE}
+for (row in 1:nrow(y)){
+  if (is.na(y[row,1])){
+    y[row,1] <- by.interval[by.interval$interval == y[row,3],2]
+  }
+}
+y.by.day <- group_by(y, date)
+y.totals <- summarize(y.by.day, total.steps = sum(steps))
+ggplot(y.totals, aes(total.steps)) + geom_histogram()
+y.tot.mean <- mean(y.totals$total.steps)
+y.tot.median <- median(y.totals$total.steps)
+```
+With the missing values filled in, the mean is `r y.tot.mean`, compared to `r tot.mean` for the original data set. Similarly, the median for the data set with the filled in values is `r y.tot.median`, compared to `r tot.median` for the original data set.
 
+With this method of filling the data, the mean remains the same, but the median changes.
 
-## What is the average daily activity pattern?
-
-
-
-## Imputing missing values
-
-
-
-## Are there differences in activity patterns between weekdays and weekends?
+**Are there differences in activity patterns between weekdays and weekends?**
+```{r}
+y$day <- 'weekday'
+y$day[weekdays(ymd(as.character(y$date))) == "Saturday" | weekdays(ymd(as.character(y$date))) == "Sunday" ] <- 'weekend'
+y$day <- as.factor(y$day)
+y.by.interval <- summarize(group_by(y, interval, day), steps=mean(steps))
+ggplot(y.by.interval, aes(interval, steps)) + geom_line() + facet_grid(day~.)
+```
